@@ -1,0 +1,132 @@
+# Predict if exercises are performed correctly 
+
+## Executive summary
+The report shows that data from wearable devices can provide feedback to a user on 
+Whether an exercise is performed correctly. In the report below data from  http://groupware.les.inf.puc-rio.br/har is used to build a random forest model. The data is seperated into a "training" data set to build a model and a "testing" data set to test the model. The random forest model built using the "training" data set is found to predict whether exercises in the testing data set are performed correctly with 100% accuracy. 
+
+## Data processing 
+The training and test data sets provided by http://groupware.les.inf.puc-rio.br/har contain a number of extraneous variables. These variables include columns with mostly NA or blank data. In addition a number of packages are required to build the models. The below R code loads the necessary packages required to build the predictive models and cleans the data sets into the variables that can are applicable to predicting whether exercises are done correctly. 
+
+```{r warning=FALSE, message=FALSE}
+#################################################
+# Package install
+
+#install.packages("gridExtra")
+#install.packages("Hmisc")
+#install.packages("AppliedPredictiveModeling")
+#install.packages("caret")
+#install.packages("ggplot2")
+#install.packages("rattle")
+#install.packages("rpart.plot")
+#install.packages("randomForest")
+
+library(gridExtra)
+library(Hmisc)
+library(AppliedPredictiveModeling)
+library(caret)
+library(ggplot2)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+
+#################################################
+# get and extract data
+
+set.seed(975)
+# Load data from C: drive. Data can be retrieved from the following location
+
+#https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+#https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+setwd("C:/Users/jhuberty/Desktop/Coursera_data_science/9 Practical Machine Learning/Project")
+pmltrain <- read.table("./pml-training.csv", header = TRUE, sep=',', na.strings=c("NA",""))
+pmltest <- read.table("./pml-testing.csv", header = TRUE, sep=',', na.strings=c("NA",""))
+
+#create factor variable for classe
+pmltrain$classe <- as.factor(pmltrain$classe)
+
+# Drop columns with NA
+pmltrain <- pmltrain[ , colSums(is.na(pmltrain)) == 0]
+pmltest <- pmltest[ , colSums(is.na(pmltest)) == 0]
+
+# Drop first 7 columns as they are variables that do not predict exercise outcome
+pmltrain <- pmltrain[ -c(1:7)]
+pmltest <- pmltest[ -c(1:7)]
+
+#create test names
+trainnames <-colnames(pmltrain)
+testnames <-colnames(pmltest)
+
+#verify same columns names are equal
+all.equal(trainnames[1:length(trainnames)-1], testnames[1:length(testnames)-1])
+
+#partition training data set
+pmlpartition = createDataPartition(pmltrain$classe, p = 3/4, list = FALSE)
+pmltraining <- pmltrain[pmlpartition,]
+pmltrainingtest <- pmltrain[-pmlpartition,]
+```
+
+## Build model
+A random forest model is build on the training data set to predict whether an athlete performs an exercise correctly. 
+
+```{r warning=FALSE, message=FALSE}
+################################################
+# Calculate prediction model using random forests
+
+if(file.exists("m2.rda")) {
+  # Load computationally intensive file 
+  load("m2.rda")  
+} else {
+  ## re(fit) model
+  
+  #defining training control
+  train_control <- trainControl(method="CV", number = 10)
+  #Train the model
+  modfit2 <- train(classe ~ ., data = pmltraining, trControl = train_control, method = "rf")
+  save(modfit2, file = "m2.rda")
+}
+```
+
+The model is then used to build a prediction on both the original training dataset as well as the test portion of the training data set that will be used to determine out of sampel error rate. 
+
+```{r warning=FALSE, message=FALSE}
+#Make prediction
+predtrain <- predict(modfit2,pmltraining)
+predtraintest <- predict(modfit2,pmltrainingtest)
+
+#summarizer results
+confusionMatrix(predtrain, pmltraining$classe)
+confusionMatrix(predtraintest, pmltrainingtest$classe)
+```
+
+# In and out of sample error rates
+The confusion matrics shows an in sample error rate of 0 and an out of sample error rate of:
+* (1-accuracy) 
+* = (1 - 0.99330) 
+* = 0.0067 
+
+# Final prediction on testing data
+Finally we use prediction model to predict on a new set of test data that is completely out of sample. The predicted model matches with 100% accuracy the actual results in the test data set. 
+```{r warning=FALSE, message=FALSE}
+predtest <- predict(modfit2, pmltest)
+predtest 
+
+
+#
+# Create a text file to upload to coursera for grades
+#answers <- predtest
+  
+#pml_write_files = function(x){
+#    n = length(x)
+#    for(i in 1:n){
+#      filename = paste0("problem_id_",i,".txt")
+#     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+#    }
+#  }
+#pml_write_files(answers)
+```
+
+#Conclusion
+In this report, it is shown that a random forest model can be used to accuractly predict whether an exercise is done correctly or incorrectly. 
+
+
